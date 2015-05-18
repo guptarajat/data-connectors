@@ -15,9 +15,11 @@ class SFTPConnectionInfo(ConnectionInfo):
 
 class SFTPConnection(Connection):
 	def connect(self):
+		print "Trying to connect to: " + self.connectionInfo.host + " with port " + str(self.connectionInfo.port) 
 		self.transport = paramiko.Transport((self.connectionInfo.host, self.connectionInfo.port))
 		self.transport.connect(username = self.connectionInfo.username, password = self.connectionInfo.password)
-
+		print "Connection Successful"
+						
 	def close(self):
 		self.transport.close()
 
@@ -34,14 +36,7 @@ class SFTPPartitionReader(PartitionReader):
 		#assuming the remote path is a file, raises error if it is a directory for now, will add option to recursively download directories
 		fileattr = sftp.lstat(sftppath)
 		if not stat.S_ISDIR(fileattr.st_mode):
-			sftp.get(sftppath, local_path+'/'+fileattr.filename)
+			sftp.get(sftppath, local_path+'/'+os.path.basename(sftppath))
 		else:
 			raise Exception('Cannot download directory yet')
 		sftp.close()
-
-myConnectionInfo = SFTPConnectionInfo('google.com','22','root','dafadafa123')
-myConnection = SFTPConnection(myConnectionInfo)
-myConnection.connect()
-myReader = SFTPReader(myConnection)
-myPartitionReader = myReader.createPartitionReader()
-myPartitionReader.read('./sftp_path/')
