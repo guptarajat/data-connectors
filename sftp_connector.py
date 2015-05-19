@@ -10,14 +10,26 @@ import stat
 from connectors import *
 
 class SFTPConnectionInfo(ConnectionInfo):
-	pass
-	#same as default class. Can modify later
+	def __init__(self, host, port, username, password=None, privatekeyfile=None):
+		self.username = username
+		self.password = password
+		self.host = host
+		self.port = port
+		self.privatekeyfile = privatekeyfile
 
 class SFTPConnection(Connection):
 	def connect(self):
 		print "Trying to connect to: " + self.connectionInfo.host + " with port " + str(self.connectionInfo.port) 
 		self.transport = paramiko.Transport((self.connectionInfo.host, self.connectionInfo.port))
-		self.transport.connect(username = self.connectionInfo.username, password = self.connectionInfo.password)
+		if self.connectionInfo.password is not None:
+			self.transport.connect(username = self.connectionInfo.username, password = self.connectionInfo.password)
+		else:
+			if self.connectionInfo.privatekeyfile is None:
+				key_path = os.path.expanduser('~/.ssh/id_rsa')
+			else:
+				key_path = os.path.expanduser(privatekeyfile)
+			mykey = paramiko.RSAKey.from_private_key_file(key_path)
+			self.transport.connect(username = self.connectionInfo.username, pkey = mykey)
 		print "Connection Successful"
 						
 	def close(self):

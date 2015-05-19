@@ -2,7 +2,7 @@
 
 from sftp_connector import *
 
-myConnectionInfo = SFTPConnectionInfo('localhost',22,'dev','dev123')
+myConnectionInfo = SFTPConnectionInfo('localhost',22,'dev')
 myConnection = SFTPConnection(myConnectionInfo)
 myConnection.connect()
 myReader = SFTPReader(myConnection)

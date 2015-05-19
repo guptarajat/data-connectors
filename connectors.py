@@ -1,6 +1,5 @@
 #!/usr/bin/python
 class ConnectionInfo:
-	attributes = dict()
 	def __init__(self, host, port, username, password):
 		self.username = username
 		self.password = password
