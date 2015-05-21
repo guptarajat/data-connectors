@@ -27,3 +27,14 @@ class Reader:
 class PartitionReader:
 	def read(self, datablock):
 		raise NotImplementedError("read method is not definded")
+
+class Writer:
+	def __init__(self, obj):
+		self.connectionObj = obj
+
+	def createPartitionWriter(self):
+		return PartitionWriter()
+
+class PartitionWriter:
+	def write(self, datablock):
+		raise NotImplementedError("write method is not defined")

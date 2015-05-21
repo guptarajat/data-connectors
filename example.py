@@ -5,6 +5,10 @@ from sftp_connector import *
 myConnectionInfo = SFTPConnectionInfo('localhost',22,'dev')
 myConnection = SFTPConnection(myConnectionInfo)
 myConnection.connect()
-myReader = SFTPReader(myConnection)
-myPartitionReader = myReader.createPartitionReader()
-myPartitionReader.read('./Desktop/Sublime.desktop')
+# myReader = SFTPReader(myConnection)
+# myPartitionReader = myReader.createPartitionReader()
+# myPartitionReader.read('./Desktop')
+
+myWriter = SFTPWriter(myConnection)
+myPartitionWriter = myWriter.createPartitionWriter()
+myPartitionWriter.write('holla','./Desktop')
