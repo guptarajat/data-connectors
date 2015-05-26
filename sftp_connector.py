@@ -9,6 +9,7 @@ import optparse
 import stat
 import errno
 from connectors import *
+from multiprocessing.pool import ThreadPool
 
 class SFTPConnectionInfo(ConnectionInfo):
 	def __init__(self, host, port, username, password=None, privatekeyfile=None):
@@ -20,7 +21,6 @@ class SFTPConnectionInfo(ConnectionInfo):
 
 class SFTPConnection(Connection):
 	def connect(self):
-		print "Trying to connect to: " + self.connectionInfo.host + " with port " + str(self.connectionInfo.port) 
 		self.transport = paramiko.Transport((self.connectionInfo.host, self.connectionInfo.port))
 		if self.connectionInfo.password is not None:
 			self.transport.connect(username = self.connectionInfo.username, password = self.connectionInfo.password)
@@ -31,15 +31,19 @@ class SFTPConnection(Connection):
 				key_path = os.path.expanduser(privatekeyfile)
 			mykey = paramiko.RSAKey.from_private_key_file(key_path)
 			self.transport.connect(username = self.connectionInfo.username, pkey = mykey)
-		print "Connection Successful"
 						
 	def close(self):
 		self.transport.close()
 
 class SFTPReader(Reader):
+	def __init__(self, obj):
+		self.connectionObj = obj
+		self.connectionInfo = obj.connectionInfo
+
 	def createPartitionReader(self):
 		sftpPartitionReader = SFTPPartitionReader()
 		sftpPartitionReader.transport = self.connectionObj.transport
+		sftpPartitionReader.connectionInfo = self.connectionInfo
 		return sftpPartitionReader
 
 class SFTPPartitionReader(PartitionReader):
@@ -47,10 +51,20 @@ class SFTPPartitionReader(PartitionReader):
 		if localPath is None:
 			localPath = os.getcwd() # local path - can be changed later
 		sftp = paramiko.SFTPClient.from_transport(self.transport)
+		pool = ThreadPool(2)
+
+		def getFile(sftppath, localpath):
+			pconnection = SFTPConnection(self.connectionInfo)
+			pconnection.connect()
+			psftp = paramiko.SFTPClient.from_transport(pconnection.transport)
+			psftp.get(sftppath, localpath)
+			psftp.close()
+			pconnection.close()
+
 		def recursiveRead(sftp, sftppath, localPath):
 			fileattr = sftp.lstat(sftppath)
 			if not stat.S_ISDIR(fileattr.st_mode): #it is a file
-				sftp.get(sftppath, os.path.join(localPath, os.path.basename(sftppath)))
+				pool.apply_async(getFile, args= (sftppath, os.path.join(localPath, os.path.basename(sftppath))))
 			else: #it is a directory
 				try: #creating local directory, using try-catch to handle race conditions
 					os.makedirs(os.path.join(localPath, os.path.basename(sftppath)))
@@ -61,6 +75,8 @@ class SFTPPartitionReader(PartitionReader):
 					recursiveRead(sftp, os.path.join(sftppath, file.filename), os.path.join(localPath, os.path.basename(sftppath)))
 		recursiveRead(sftp, sftppath, localPath)
 		sftp.close()
+		pool.close()
+		pool.join()
 
 class SFTPWriter(Writer):
 	def createPartitionWriter(self):
