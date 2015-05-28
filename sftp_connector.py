@@ -79,8 +79,9 @@ class SFTPPartitionReader(PartitionReader):
 					recursiveRead(sftp, os.path.join(sftppath, file.filename), os.path.join(localPath, os.path.basename(sftppath)))
 		recursiveRead(sftp, sftppath, localPath)
 		sftp.close()
-		pool.close()
-		pool.join()
+		if (numParallelConnections > 1):
+			pool.close()
+			pool.join()
 
 class SFTPWriter(Writer):
 	def __init__(self, obj):
@@ -127,3 +128,6 @@ class SFTPPartitionWriter(PartitionWriter):
 					recursiveWrite(sftp, os.path.join(localPath, file), os.path.join(sftppath, os.path.basename(localPath)))
 		recursiveWrite(sftp, localPath, sftppath)
 		sftp.close()
+		if (numParallelConnections > 1):
+			pool.close()
+			pool.join()
