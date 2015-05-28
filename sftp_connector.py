@@ -47,11 +47,12 @@ class SFTPReader(Reader):
 		return sftpPartitionReader
 
 class SFTPPartitionReader(PartitionReader):
-	def read(self, sftppath, localPath = None):
+	def read(self, sftppath, localPath = None, numParallelConnections = 1):
 		if localPath is None:
 			localPath = os.getcwd() # local path - can be changed later
 		sftp = paramiko.SFTPClient.from_transport(self.transport)
-		pool = ThreadPool(2)
+		if (numParallelConnections > 1):
+			pool = ThreadPool(numParallelConnections)
 
 		def getFile(sftppath, localpath):
 			pconnection = SFTPConnection(self.connectionInfo)
@@ -64,7 +65,10 @@ class SFTPPartitionReader(PartitionReader):
 		def recursiveRead(sftp, sftppath, localPath):
 			fileattr = sftp.lstat(sftppath)
 			if not stat.S_ISDIR(fileattr.st_mode): #it is a file
-				pool.apply_async(getFile, args= (sftppath, os.path.join(localPath, os.path.basename(sftppath))))
+				if (numParallelConnections > 1):
+					pool.apply_async(getFile, args= (sftppath, os.path.join(localPath, os.path.basename(sftppath))))
+				else:
+					sftp.get(sftppath, os.path.join(localPath, os.path.basename(sftppath)))
 			else: #it is a directory
 				try: #creating local directory, using try-catch to handle race conditions
 					os.makedirs(os.path.join(localPath, os.path.basename(sftppath)))
@@ -79,21 +83,40 @@ class SFTPPartitionReader(PartitionReader):
 		pool.join()
 
 class SFTPWriter(Writer):
+	def __init__(self, obj):
+		self.connectionObj = obj
+		self.connectionInfo = obj.connectionInfo
+
 	def createPartitionWriter(self):
 		sftpPartitionWriter = SFTPPartitionWriter()
 		sftpPartitionWriter.transport = self.connectionObj.transport
+		sftpPartitionWriter.connectionInfo = self.connectionInfo
 		return sftpPartitionWriter
 
 class SFTPPartitionWriter(PartitionWriter):
-	def write(self, localPath, sftppath = None):
+	def write(self, localPath, sftppath = None, numParallelConnections = 1):
 		localPath = os.path.expanduser(localPath)
 		print 'Copying contents from ' + localPath + ' to ' + sftppath 
 		if sftppath is None:
 			sftppath = './'
 		sftp = paramiko.SFTPClient.from_transport(self.transport)
+		if (numParallelConnections > 1):
+			pool = ThreadPool(numParallelConnections)
+
+		def putFile(localpath, sftppath):
+			pconnection = SFTPConnection(self.connectionInfo)
+			pconnection.connect()
+			psftp = paramiko.SFTPClient.from_transport(pconnection.transport)
+			psftp.put(localpath, sftppath)
+			psftp.close()
+			pconnection.close()
+
 		def recursiveWrite(sftp, localPath, sftppath):
 			if os.path.isfile(localPath): # if given path is a file
-				sftp.put(localPath, os.path.join(sftppath, os.path.basename(localPath)))
+				if (numParallelConnections > 1):
+					pool.apply_async(putFile, args=(localPath, os.path.join(sftppath, os.path.basename(localPath))))
+				else:
+					sftp.put(localPath, os.path.join(sftppath, os.path.basename(localPath)))
 			else:
 				print sftppath
 				try:
